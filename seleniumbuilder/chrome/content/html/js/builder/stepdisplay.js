@@ -30,8 +30,19 @@ builder.registerPostLoadHook(function() {
   jQuery('#edit-rc-connecting-text').text(_t('connecting'));
   jQuery('#record-verify').text(_t('record_verification'));
   jQuery('#record-stop-button').text(_t('stop_recording'));
+  
+  // Hide menus
+  jQuery('body').click(function(e) {
+    jQuery('.b-tasks').removeClass('b-tasks-appear');
+    openMenuID = -1;
+  });
+  jQuery('html').click(function(e) {
+    jQuery('.b-tasks').removeClass('b-tasks-appear');
+    openMenuID = -1;
+  });
 });
 
+var openMenuID = -1;
 var reorderHandlerInstalled = false;
 
 function esc(txt) {
@@ -82,15 +93,21 @@ builder.stepdisplay.update = function() {
       items: ".b-step",
       axis: "y",
       update: function(evt, ui) {
+        var script = builder.getScript();
         var reorderedSteps = jQuery('#steps .b-step').get();
         var reorderedIDs = [];
         for (var i = 0; i < reorderedSteps.length; i++) {
           // Filter out elements that aren't actually steps. (?)
-          if (builder.getScript().getStepIndexForID(reorderedSteps[i].id) != -1) {
+          if (script.getStepIndexForID(reorderedSteps[i].id) != -1) {
             reorderedIDs.push(reorderedSteps[i].id);
           }
         }
-        builder.getScript().reorderSteps(reorderedIDs);
+        script.reorderSteps(reorderedIDs);
+        // Then relabel them.
+        for (var i = 0; i < script.steps.length; i++) {
+          var step = script.steps[i];
+          jQuery('#' + step.id + '-name').html(step.step_name || (i + 1) + ".");
+        }
       }
     });
     reorderHandlerInstalled = true;
@@ -549,15 +566,7 @@ function editType(stepID) {
     newNode('a', _t('ok'), {
       class: 'button',
       click: function (e) {
-        var type = jQuery('#' + stepID + '-edit-cat-list')[0].__sb_stepType;
-        if (type) {
-          step.changeType(type);
-          step.negated = step.type.getNegatable() && !!(jQuery('#' + stepID + '-edit-negate').attr('checked'));
-        }
-        jQuery('#' + stepID + '-edit-div').remove();
-        jQuery('#' + stepID + '-type').show();
-        builder.stepdisplay.updateStep(stepID);
-        builder.suite.setCurrentScriptSaveRequired(true);
+        confirmTypeSelection(stepID);
       }
     })
   );
@@ -569,7 +578,47 @@ function editType(stepID) {
   jQuery('#' + stepID + '-type').hide();
   updateTypeDivs(stepID, step.type);
   jQuery('#' + stepID + '-type-search').focus();
-  jQuery('#' + stepID + '-type-search').keyup(function() { doSearch(stepID) });
+  jQuery('#' + stepID + '-type-search').keyup(function(e) {
+    if (e.which == 13) {
+      selectFirstSearchResult(stepID);
+    } else {
+      doSearch(stepID)
+    }
+  });
+}
+
+function confirmTypeSelection(stepID) {
+  var step = builder.getScript().getStepWithID(stepID);
+  var type = jQuery('#' + stepID + '-edit-cat-list')[0].__sb_stepType;
+  if (type) {
+    step.changeType(type);
+    step.negated = step.type.getNegatable() && !!(jQuery('#' + stepID + '-edit-negate').attr('checked'));
+  }
+  jQuery('#' + stepID + '-edit-div').remove();
+  jQuery('#' + stepID + '-type').show();
+  builder.stepdisplay.updateStep(stepID);
+  builder.suite.setCurrentScriptSaveRequired(true);
+}
+
+function selectFirstSearchResult(stepID) {
+  var query = jQuery('#' + stepID + '-type-search').val().trim();
+  if (query) {
+    jQuery('#' + stepID + '-cat-table').hide();
+    jQuery('#' + stepID + '-results-list').show().html('');
+    var script = builder.getScript();
+    for (var i = 0; i < script.seleniumVersion.categories.length; i++) {
+      for (var j = 0; j < script.seleniumVersion.categories[i][1].length; j++) {
+        var stepType = script.seleniumVersion.categories[i][1][j];
+        var stepTypeName = stepType.getName();
+        if (stepTypeName.toLowerCase().indexOf(query) != -1) {
+          //jQuery('#' + stepID + '-type-search').val('');
+          mkUpdate(stepID, stepType)();
+          confirmTypeSelection(stepID);
+          return;
+        }
+      }
+    }
+  }
 }
 
 function doSearch(stepID) {
@@ -766,15 +815,30 @@ function createAltItem(step, pIndex, pName, altName, altValue, altIndex) {
   );
 }
 
-var appearingID = -1;
-var lastExitOn = {};
-var enterNext = -1;
+function editStepName(stepID) {
+  jQuery('#' + stepID + '-name').hide();
+  jQuery('#' + stepID + '-name-edit').show();
+  jQuery('#' + stepID + '-name-edit-field').
+    val(jQuery('#' + stepID + '-name').html()).
+    attr("placeholder", (builder.getScript().getStepIndexForID(stepID) + 1) + ".").
+    focus().select();
+}
+
+function saveStepName(stepID) {
+  jQuery('#' + stepID + '-name-edit').hide();
+  var n = jQuery('#' + stepID + '-name-edit-field').val();
+  var script = builder.getScript();
+  var step = script.getStepWithID(stepID);
+  step.step_name = n == "" ? null : n;
+  jQuery('#' + stepID + '-name').html(n == "" ? (script.steps.indexOf(step) + 1) + "." : n).show();
+}
 
 /** Adds the given step to the GUI. */
 function addStep(step) {
   var script = builder.getScript();
+  var stepName = step.step_name || (script.steps.indexOf(step) + 1) + ".";
   jQuery("#steps").append(
-    // List of options that materialises on rollover.
+    // Step menu.
     newNode('div', {id: step.id, class: 'b-step'},
       newNode('span', {id: step.id + '-b-tasks', class: 'b-tasks'},
         newNode('a', _t('step_edit_type'), {
@@ -866,11 +930,28 @@ function addStep(step) {
       ),
       newNode('div', {class: 'b-step-content', id: step.id + '-content'},
         newNode('div', {class: 'b-step-container', id: step.id + '-container'},
+          // Menu hamburger
+          newNode('span', {'id': step.id + '-burger', 'class': 'b-burger'}, ' '),
+        
           // The breakpoint marker
           newNode('span', {'id': step.id + '-breakpoint', 'class': 'b-step-breakpoint' + (builder.breakpointsEnabled ? '' : 'b-step-breakpoint-disabled'), 'style': step.breakpoint ? '' : 'display: none;'}, ' '),
         
-          // The step number
-          newNode('span', {class:'b-step-number'}),
+          // The step name
+          newNode('span', {'class':'b-step-name', 'id': step.id + '-name', 'click': function() { editStepName(step.id); }}, stepName),
+          
+          newNode('span', {'id': step.id + '-name-edit', 'style': 'display: none;'},
+            newNode('input', {'id': step.id + '-name-edit-field', 'type': 'text', 'keyup': function(e) {
+              if (e.which == 13) {
+                saveStepName(step.id);
+              }
+            }}),
+            " ",
+            newNode('a', _t('ok'), {
+              'id': step.id + '-name-edit-ok',
+              'class': 'button',
+              'click': function () { saveStepName(step.id); }
+            })
+          ),
       
           // The type
           newNode('a', step.type, {
@@ -933,40 +1014,16 @@ function addStep(step) {
     )
   );
   
-  jQuery('#' + step.id).mouseenter(function(e) {
-    if (appearingID == -1) {
+  jQuery('#' + step.id + '-burger').click(function(e) {
+    jQuery('.b-tasks').removeClass('b-tasks-appear');
+    if (openMenuID != step.id) {
       jQuery('#' + step.id + '-b-tasks').addClass('b-tasks-appear');
-      jQuery('#' + step.id + '-type').addClass('b-tasks-appear-method');
-      appearingID = step.id;
+      openMenuID = step.id;
     } else {
-      enterNext = step.id;
+      openMenuID = -1;
     }
-    if (appearingID == step.id) {
-      lastExitOn[step.id] = new Date().getTime();
-    }
-  });
-  jQuery('#' + step.id).mouseleave(function(e) {
-    var exitTime = new Date().getTime();
-    setTimeout(function() {
-      if (lastExitOn[step.id] == exitTime) {
-        jQuery('#' + step.id + '-b-tasks').removeClass('b-tasks-appear');
-        jQuery('#' + step.id + '-type').removeClass('b-tasks-appear-method');
-        if (appearingID == step.id) {
-          appearingID = -1;
-          if (enterNext != -1) {
-            jQuery('#' + enterNext + '-b-tasks').addClass('b-tasks-appear');
-            jQuery('#' + enterNext + '-type').addClass('b-tasks-appear-method');
-            appearingID = enterNext;
-            enterNext = -1;
-            lastExitOn[step.id] = new Date().getTime();
-          }
-        }
-      }
-    }, 150);
-    lastExitOn[step.id] = exitTime;
-    if (enterNext == step.id) {
-      enterNext = -1;
-    }
+
+    e.stopPropagation();
   });
   
   // Prevent tasks menu from going off the bottom of the list.

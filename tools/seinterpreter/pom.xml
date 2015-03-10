@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <artifactId>sebuilder-interpreter</artifactId>
     <groupId>com.saucelabs</groupId>
-    <version>1.0.1</version>
+    <version>1.0.5</version>
     <packaging>jar</packaging>
     <name>sebuilder-interpreter</name>
     <description></description>
@@ -61,6 +61,11 @@
             <groupId>org.seleniumhq.selenium</groupId>
             <artifactId>selenium-java</artifactId>
             <version>LATEST</version>
+        </dependency>
+        <dependency>
+        	  <groupId>net.sf.opencsv</groupId>
+        	  <artifactId>opencsv</artifactId>
+        	  <version>2.3</version>
         </dependency>
     </dependencies>
 

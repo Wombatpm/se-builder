@@ -42,6 +42,8 @@ builder.selenium2.playback.pauseCounter = 0;
 builder.selenium2.playback.pauseInterval = null;
 /** The current execute callback, to reroute mis-routed messages to. */
 builder.selenium2.playback.exeCallback = null;
+/** The number of the newest execute callback, to prevent misrouting. */
+builder.selenium2.playback.callbackCount = 1;
 /** The original value of prompts.tab_modal.enabled. */
 builder.selenium2.playback.prompts_tab_modal_enabled = true;
 /** Whether playback is currently paused on a breakpoint. */
@@ -268,7 +270,12 @@ builder.selenium2.playback.execute = function(name, parameters, callback, errorC
     'parameters': parameters,
     'sessionId': {"value": builder.selenium2.playback.sessionId}
   };
+  builder.selenium2.playback.callbackCount++;
+  var cb_id = builder.selenium2.playback.callbackCount;
   builder.selenium2.playback.exeCallback = function(result) {
+    if (builder.selenium2.playback.callbackCount != cb_id) {
+      return;
+    }
     result = JSON.parse(result);
     if (result.status != 0) {
       if (errorCallback) {
@@ -1019,6 +1026,10 @@ builder.selenium2.playback.playbackFunctions = {
   "switchToWindow": function() {
     builder.selenium2.playback.execute("switchToWindow", { 'name': builder.selenium2.playback.param("name") });
   },
+
+  "switchToWindowByIndex": function() {
+    builder.selenium2.playback.execute("switchToWindow", { 'id': parseInt(builder.selenium2.playback.param("index")) });
+  },
   
   "switchToDefaultContent": function() {
     builder.selenium2.playback.execute("switchToFrame", {});
@@ -1093,10 +1104,14 @@ builder.selenium2.playback.playbackFunctions = {
     });
   },
   "acceptAlert": function() {
-    builder.selenium2.playback.execute('acceptAlert', {});
+    setTimeout(function() {
+      builder.selenium2.playback.execute('acceptAlert', {});
+    }, 1000);
   },
   "dismissAlert": function() {
-    builder.selenium2.playback.execute('dismissAlert', {});
+    setTimeout(function() {
+      builder.selenium2.playback.execute('dismissAlert', {});
+    }, 1000);
   },
   
   "verifyEval": function() {
@@ -1239,6 +1254,7 @@ builder.selenium2.playback.recordError = function(message) {
 };
 
 builder.selenium2.playback.doRecordError = function(message) {
+  message = message ? ("" + message) : _t('sel1_playback_failed');
   builder.selenium2.playback.stepStateCallback(builder.selenium2.playback, builder.selenium2.playback.script, builder.selenium2.playback.currentStep, builder.selenium2.playback.currentStepIndex(), builder.stepdisplay.state.ERROR, null, message);
   builder.selenium2.playback.playResult.success = false;
   builder.selenium2.playback.playResult.errormessage = message;

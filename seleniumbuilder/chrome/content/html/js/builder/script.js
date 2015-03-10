@@ -102,6 +102,7 @@ builder.Step = function(type) {
   this.type = type;
   this.id = builder.__idCounter;
   this.negated = false;
+  this.step_name = null; // Can be null for default numbering.
   builder.__idCounter++;
   var pNames = this.type.getParamNames();
   if (pNames) {
@@ -119,13 +120,14 @@ builder.Step = function(type) {
 builder.stepFromJSON = function(parsedJSON, seleniumVersion) {
   var step = new builder.Step(seleniumVersion.stepTypes[parsedJSON.type]);
   step.negated = parsedJSON.negated || false;
+  step.step_name = parsedJSON.step_name || null;
   var pNames = step.getParamNames();
   for (var j = 0; j < pNames.length; j++) {
     if (parsedJSON[pNames[j]]) {
       if (step.type.getParamType(pNames[j]) == "locator") {
         step[pNames[j]] = builder.selenium2.io.jsonToLoc(parsedJSON[pNames[j]]);
       } else {
-        step[pNames[j]] = parsedJSON[pNames[j]];
+        step[pNames[j]] = "" + parsedJSON[pNames[j]];
       }
     }
   }
@@ -150,6 +152,9 @@ builder.Step.prototype = {
     var cleanStep = { type: this.type.name };
     if (this.negated) {
       cleanStep.negated = true;
+    }
+    if (this.step_name) {
+      cleanStep.step_name = this.step_name;
     }
     var pNames = this.getParamNames();
     for (var j = 0; j < pNames.length; j++) {

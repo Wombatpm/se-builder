@@ -47,6 +47,12 @@ builder.selenium2.docs = {
     },
     "description": "Switches playback to a different window."
   },
+  "switchToWindowByIndex": {
+    "params": {
+      "index": "The index of the window to switch to. Note that Selenium 1 style relative=X parameters are not supported."
+    },
+    "description": "Switches playback to a different window, identified by its index."
+  },
   "switchToDefaultContent": {
     "params": {},
     "description": "Switches playback to the default/top frame."
@@ -89,11 +95,11 @@ builder.selenium2.docs = {
   },
   "acceptAlert": {
     "params": {},
-    "description": "Dismiss the current alert."
+    "description": "Accept the current alert."
   },
   "dismissAlert": {
     "params": {},
-    "description": "Accept the current alert."
+    "description": "Dismiss the current alert."
   },
   "store": {
     "params": {
